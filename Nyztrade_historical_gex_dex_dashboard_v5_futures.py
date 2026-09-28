@@ -153,7 +153,7 @@ st.markdown("""
 
 # ── Dhan API Token ────────────────────────────────────────────────────────────
 # Paste fresh token here whenever it expires (every ~30 days).
-HEDGEX_DHAN_TOKEN = ("eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJ1c2VyUmVnaW9uIjoiUjEiLCJpc3MiOiJkaGFuIiwicGFydG5lcklkIjoiIiwiZXhwIjoxNzkwNjE1NzA5LCJhcHBfaWQiOiJhYjYxZmJmOSIsImlhdCI6MTc5MDUyOTMwOSwidG9rZW5Db25zdW1lclR5cGUiOiJBUFAiLCJ3ZWJob29rVXJsIjoiIiwiZGhhbkNsaWVudElkIjoiMTEwMDQ4MDM1NCJ9.B89tI8C_ar6rdAlHNgV03iAdE3oQIDzq5SDeNj-V9AkJpzd6ckC5AochbWXSd-tvL83e7IIeozakVLfrptbORQ")
+HEDGEX_DHAN_TOKEN = ("eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJ1c2VyUmVnaW9uIjoiUjEiLCJpc3MiOiJkaGFuIiwicGFydG5lcklkIjoiIiwiZXhwIjoxNzkwNzEzMjk3LCJhcHBfaWQiOiJhYjYxZmJmOSIsImlhdCI6MTc5MDYyNjg5NywidG9rZW5Db25zdW1lclR5cGUiOiJBUFAiLCJ3ZWJob29rVXJsIjoiIiwiZGhhbkNsaWVudElkIjoiMTEwMDQ4MDM1NCJ9.vsicUpdXIUWx2jwyEMNYXeIIyD9uvVabiDoYRybgags3AI-GTvEVqGkGRH4dZV7IBQLlktsHg3xXKD31jjUBSA")
 
 # ── Login Credentials ─────────────────────────────────────────────────────────
 # role = "admin"  → full access + cache clear
