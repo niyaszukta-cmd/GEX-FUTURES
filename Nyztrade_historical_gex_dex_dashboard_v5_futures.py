@@ -11645,77 +11645,124 @@ def main():
         spot_price    = df_selected['spot_price'].iloc[0] if len(df_selected) > 0 else 0
 
         # ── FUTURES / SPOT TOGGLE ────────────────────────────────────────────
-        # Fetch futures LTP (only for index symbols; stocks use spot only)
-        _is_index_sym = symbol in DHAN_INDEX_SECURITY_IDS
+        _is_index_sym  = symbol in DHAN_INDEX_SECURITY_IDS
         _fut_cache_key = f"fut_ltp_{symbol}"
+        _fut_ts_key    = f"fut_ltp_ts_{symbol}"
+        _man_key       = f"fut_manual_{symbol}"   # manual override key
 
         if _is_index_sym:
-            # Cache futures LTP per symbol for 15 s to avoid hammering the API
-            _fut_ts_key = f"fut_ltp_ts_{symbol}"
+            # Try live fetch — cache 15 s so we don't hammer the API every render
             _now_ts = time.time()
             if (_fut_cache_key not in st.session_state or
                     _now_ts - st.session_state.get(_fut_ts_key, 0) > 15):
-                _fetched_ltp = fetch_futures_ltp(symbol)
-                if _fetched_ltp > 0:
-                    st.session_state[_fut_cache_key] = _fetched_ltp
+                _fetched = fetch_futures_ltp(symbol)
+                if _fetched > 0:
+                    st.session_state[_fut_cache_key] = _fetched
+                    st.session_state[_man_key]       = _fetched   # seed manual input
                 st.session_state[_fut_ts_key] = _now_ts
-            futures_price = float(st.session_state.get(_fut_cache_key, 0.0))
+            _live_futures = float(st.session_state.get(_fut_cache_key, 0.0))
+            _live_ok      = _live_futures > 0
         else:
-            futures_price = 0.0
+            _live_futures = 0.0
+            _live_ok      = False
 
-        # Toggle — placed just below the time-point slider
+        # ── Layout: toggle | basis panel ─────────────────────────────────────
         _ref_col1, _ref_col2 = st.columns([2, 3])
+
         with _ref_col1:
-            if _is_index_sym and futures_price > 0:
+            if _is_index_sym:
+                # Toggle is ALWAYS shown for index symbols
                 _price_mode = st.radio(
                     "📐 Reference price for GEX",
                     ["Spot", "Futures"],
                     horizontal=True,
                     key="price_mode_toggle",
                     help=(
-                        "Spot: GEX strike selection and all calculations anchored to the "
-                        "index cash price (standard mode).\n\n"
-                        "Futures: ATM strike and all GEX/gamma calculations anchored to "
-                        "the near-month futures LTP — detects regime ~30 s earlier than spot."
+                        "Spot: all GEX calculations anchored to the index cash price "
+                        "(standard, correct for settlement).\n\n"
+                        "Futures: ATM strike and all GEX/gamma maths anchored to the "
+                        "near-month futures LTP. Detects regime shift ~30 s earlier "
+                        "than spot. Most useful during contango > 100 pts."
                     ),
                 )
-            else:
-                _price_mode = "Spot"
-                if _is_index_sym:
-                    st.caption("🔄 Futures LTP unavailable — using Spot")
+
+                if _price_mode == "Futures":
+                    if _live_ok:
+                        futures_price = _live_futures
+                        st.caption(f"\u2705 Live futures LTP: \u20b9{futures_price:,.2f}")
+                    else:
+                        # Manual fallback — persisted in session state across re-renders
+                        _default_manual = float(
+                            st.session_state.get(_man_key, float(spot_price) + 60.0)
+                        )
+                        futures_price = float(st.number_input(
+                            "\u270f\ufe0f Enter Futures LTP (manual)",
+                            min_value=float(spot_price) * 0.90,
+                            max_value=float(spot_price) * 1.10,
+                            value=_default_manual,
+                            step=0.5,
+                            format="%.2f",
+                            key=f"fut_manual_input_{symbol}",
+                            help=(
+                                "Live fetch unavailable (market closed or API limit). "
+                                "Enter the near-month futures LTP from your broker terminal."
+                            ),
+                        ))
+                        st.session_state[_man_key] = futures_price
+                        st.caption("\U0001f4dd Manual entry — live fetch unavailable")
                 else:
-                    st.caption("📐 Spot reference (stocks only)")
+                    futures_price = 0.0
+            else:
+                _price_mode   = "Spot"
+                futures_price = 0.0
+                st.caption("\U0001f4d0 Spot reference (stocks only)")
 
         with _ref_col2:
-            if _is_index_sym and futures_price > 0:
+            if _is_index_sym and _price_mode == "Futures" and futures_price > 0:
                 _basis     = futures_price - spot_price
                 _basis_pct = (_basis / spot_price * 100) if spot_price else 0
                 _basis_col = (
-                    "#f59e0b" if abs(_basis) > 150 else
                     "#ef4444" if abs(_basis) > 300 else
+                    "#f59e0b" if abs(_basis) > 150 else
                     "#10b981"
                 )
-                _warn = " ⚠️ HIGH" if abs(_basis) > 150 else ""
+                _warn = " \u26a0\ufe0f EXTREME" if abs(_basis) > 300 else " \u26a0\ufe0f HIGH" if abs(_basis) > 150 else ""
                 st.markdown(
                     f'<div style="font-family:JetBrains Mono,monospace;font-size:0.75rem;'
                     f'background:rgba(15,23,42,0.6);border:1px solid {_basis_col}44;'
-                    f'border-radius:6px;padding:6px 12px;line-height:1.8;">'
-                    f'Spot &nbsp;<b style="color:#06b6d4;">₹{spot_price:,.2f}</b>'
+                    f'border-radius:6px;padding:6px 12px;line-height:1.9;">'
+                    f'Spot &nbsp;<b style="color:#06b6d4;">\u20b9{spot_price:,.2f}</b>'
                     f'&nbsp;&nbsp;|&nbsp;&nbsp;'
-                    f'Futures <b style="color:#a78bfa;">₹{futures_price:,.2f}</b>'
-                    f'&nbsp;&nbsp;|&nbsp;&nbsp;'
+                    f'Futures <b style="color:#a78bfa;">\u20b9{futures_price:,.2f}</b>'
+                    f'<br>'
                     f'Basis <b style="color:{_basis_col};">{_basis:+.1f} pts '
                     f'({_basis_pct:+.2f}%){_warn}</b>'
+                    f'&nbsp;&nbsp;|&nbsp;&nbsp;'
+                    f'\U0001f534 GEX anchored to Futures'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+            elif _is_index_sym:
+                st.markdown(
+                    f'<div style="font-family:JetBrains Mono,monospace;font-size:0.75rem;'
+                    f'background:rgba(15,23,42,0.4);border:1px solid #1e293b;'
+                    f'border-radius:6px;padding:6px 12px;color:#64748b;line-height:1.9;">'
+                    f'Reference: <b style="color:#06b6d4;">Spot \u20b9{spot_price:,.2f}</b>'
+                    f'&nbsp;&nbsp;|&nbsp;&nbsp;'
+                    f'Select <b style="color:#a78bfa;">Futures</b> above to use basis-adjusted GEX'
                     f'</div>',
                     unsafe_allow_html=True,
                 )
 
-        # ── reference_price: the single price used for ALL GEX maths ────────
-        # All chart functions and cascade calculations use reference_price.
-        # Spot mode  → reference_price == spot_price  (no change to existing behaviour)
-        # Futures mode → reference_price == futures_price (ATM shifts, flip level shifts)
-        reference_price = futures_price if (_price_mode == "Futures" and futures_price > 0) else spot_price
-        _ref_label      = "Futures" if reference_price != spot_price else "Spot"
+        # ── reference_price: single variable consumed by every chart/calc ────
+        # Spot mode    → reference_price == spot_price  (unchanged behaviour)
+        # Futures mode → reference_price == futures_price (ATM anchor shifts)
+        reference_price = (
+            futures_price
+            if (_price_mode == "Futures" and futures_price > 0)
+            else spot_price
+        )
+        _ref_label = "Futures" if reference_price != spot_price else "Spot"
 
         mode_cfg = {'cached':('📦 CACHED','#10b981'), 'incremental':(f"📡 INCREMENTAL (+{meta.get('new_records',0)} new)",'#06b6d4'),
                     'full_fetch':('🚀 FULL FETCH','#8b5cf6')}
